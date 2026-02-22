@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { JoinLeagueButton } from "@/app/(authed)/league/[id]/join-league-button";
 import { InviteForm } from "@/app/(authed)/league/[id]/invite-form";
+import { InviteHistory } from "@/app/(authed)/league/[id]/invite-history";
 
 interface LeaguePageProps {
   params: Promise<{ id: string }>;
@@ -75,7 +76,10 @@ export default async function LeaguePage({ params }: LeaguePageProps) {
       )}
 
       {userMembership && (userMembership.role === "owner" || userMembership.role === "admin") ? (
-        <InviteForm leagueId={id} />
+        <>
+          <InviteForm leagueId={id} />
+          <InviteHistory leagueId={id} />
+        </>
       ) : null}
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-6">
