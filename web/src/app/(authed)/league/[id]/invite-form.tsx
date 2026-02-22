@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 
 interface InviteResponse {
   invite?: {
@@ -17,6 +18,7 @@ export function InviteForm({ leagueId }: { leagueId: string }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [invitePath, setInvitePath] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,6 +26,7 @@ export function InviteForm({ leagueId }: { leagueId: string }) {
     setIsSubmitting(true);
     setError(null);
     setSuccessMessage(null);
+    setInvitePath(null);
 
     try {
       const response = await fetch(`/api/leagues/${leagueId}/invites`, {
@@ -43,6 +46,7 @@ export function InviteForm({ leagueId }: { leagueId: string }) {
       }
 
       setSuccessMessage(`Invite created for ${payload.invite.invitee_email}`);
+      setInvitePath(`/invite/${payload.invite.token}`);
       setEmail("");
     } catch (inviteError) {
       setError(inviteError instanceof Error ? inviteError.message : "Unable to create invite.");
@@ -76,6 +80,14 @@ export function InviteForm({ leagueId }: { leagueId: string }) {
 
       {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
       {successMessage ? <p className="mt-3 text-sm text-green-700">{successMessage}</p> : null}
+      {invitePath ? (
+        <p className="mt-2 text-sm text-neutral-700">
+          Invite link:{" "}
+          <Link href={invitePath} className="font-medium underline">
+            {invitePath}
+          </Link>
+        </p>
+      ) : null}
     </section>
   );
 }
