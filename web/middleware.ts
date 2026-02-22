@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
+  const fallbackResponse = NextResponse.next({
     request: {
       headers: request.headers,
     },
@@ -13,31 +13,36 @@ export async function middleware(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    return response;
+    return fallbackResponse;
   }
 
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
+  try {
+    let response = fallbackResponse;
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
+
+          cookiesToSet.forEach((cookie) => response.cookies.set(cookie.name, cookie.value, cookie.options));
+        },
       },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach((cookie) => request.cookies.set(cookie.name, cookie.value));
+    });
 
-        response = NextResponse.next({
-          request: {
-            headers: request.headers,
-          },
-        });
+    await supabase.auth.getUser();
 
-        cookiesToSet.forEach((cookie) => response.cookies.set(cookie.name, cookie.value, cookie.options));
-      },
-    },
-  });
-
-  await supabase.auth.getUser();
-
-  return response;
+    return response;
+  } catch (error) {
+    console.error("middleware session refresh failed", error);
+    return fallbackResponse;
+  }
 }
 
 export const config = {
