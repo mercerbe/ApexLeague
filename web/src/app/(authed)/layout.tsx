@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function AuthedLayout({ children }: { children: React.ReactNode }) {
@@ -13,9 +14,14 @@ export default async function AuthedLayout({ children }: { children: React.React
     <>
       <header className="border-b border-neutral-200 bg-white">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
-          <a href="/profile" className="text-sm font-medium uppercase tracking-[0.12em] text-neutral-700">
-            Apex League
-          </a>
+          <nav className="flex items-center gap-4">
+            <Link href="/profile" className="text-sm font-medium uppercase tracking-[0.12em] text-neutral-700">
+              Apex League
+            </Link>
+            <Link href="/leagues" className="text-sm font-medium text-neutral-600 hover:text-neutral-900">
+              Leagues
+            </Link>
+          </nav>
           <form action="/auth/signout" method="post">
             <button
               type="submit"
