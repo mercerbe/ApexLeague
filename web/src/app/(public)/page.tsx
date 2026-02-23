@@ -58,7 +58,7 @@ export default async function LandingPage() {
               Leaderboard
             </a>
             <a
-              href="#how-it-works"
+              href="/how-it-works"
               className="rounded-lg border border-neutral-300 bg-white/60 px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-white"
             >
               How It Works
