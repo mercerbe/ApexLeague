@@ -91,3 +91,9 @@ Base URL (production):
 - Betting cap (100 tokens) enforced
 - No regressions in create/join/invite flows
 - Known gaps captured as backlog items (not silent failures)
+
+## Automation Hooks
+- Playwright smoke tests live under `web/tests/smoke`
+- Run locally from `web/`:
+  - `npm run test:e2e:smoke`
+  - `E2E_BASE_URL=https://apex-league-three.vercel.app npm run test:e2e:smoke`

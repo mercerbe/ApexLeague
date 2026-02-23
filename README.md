@@ -136,6 +136,8 @@ Run from `web/`.
 | Build | `npm run build` | Production build (type checks + route build) |
 | Start | `npm run start` | Runs the production server |
 | Lint | `npm run lint` | ESLint checks |
+| E2E | `npm run test:e2e` | Runs Playwright end-to-end suite |
+| E2E Smoke | `npm run test:e2e:smoke` | Runs smoke subset (`web/tests/smoke`) |
 
 ## Deployment (Vercel)
 
@@ -154,6 +156,20 @@ Required Vercel environment variables:
 - `ODDS_API_KEY` (when odds ingestion is enabled)
 - `F1_RESULTS_PROVIDER` (currently `openf1`)
 - `RESEND_API_KEY` and `INVITE_EMAIL_FROM` (for invite email delivery)
+
+## Internal Observability
+
+Internal endpoints (Bearer `CRON_SECRET` or `SETTLEMENT_CRON_SECRET`):
+
+- `GET /api/internal/cron/settle-races`
+  - Runs ingest + settle orchestration
+  - Returns per-race status, durations, and failures
+- `GET /api/internal/cron/settle-races/health`
+  - Returns settlement health snapshot:
+    - race status counts
+    - overdue race count/ids
+    - pending bet backlog for overdue races
+    - latest settled race metadata
 
 ## Product Documentation
 
