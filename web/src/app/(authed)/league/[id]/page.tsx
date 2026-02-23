@@ -5,6 +5,7 @@ import { JoinLeagueButton } from "@/app/(authed)/league/[id]/join-league-button"
 import { InviteForm } from "@/app/(authed)/league/[id]/invite-form";
 import { InviteHistory } from "@/app/(authed)/league/[id]/invite-history";
 import { LeagueFeed } from "@/app/(authed)/league/[id]/league-feed";
+import { LeagueStandings } from "@/app/(authed)/league/[id]/league-standings";
 
 interface LeaguePageProps {
   params: Promise<{ id: string }>;
@@ -23,7 +24,6 @@ interface LeagueRecord {
 interface LeagueMemberRecord {
   user_id: string;
   role: "owner" | "admin" | "member";
-  season_points: number;
 }
 
 export default async function LeaguePage({ params }: LeaguePageProps) {
@@ -46,9 +46,8 @@ export default async function LeaguePage({ params }: LeaguePageProps) {
 
   const { data: members } = await supabase
     .from("league_members")
-    .select("user_id, role, season_points")
+    .select("user_id, role")
     .eq("league_id", id)
-    .order("season_points", { ascending: false })
     .returns<LeagueMemberRecord[]>();
 
   const userMembership = members?.find((member) => member.user_id === user?.id) ?? null;
@@ -84,28 +83,7 @@ export default async function LeaguePage({ params }: LeaguePageProps) {
       ) : null}
 
       <LeagueFeed leagueId={id} isMember={Boolean(userMembership)} />
-
-      <section className="rounded-2xl border border-neutral-200 bg-white p-6">
-        <h2 className="text-xl font-semibold">Standings (Current)</h2>
-        {members && members.length > 0 ? (
-          <ol className="mt-4 space-y-2">
-            {members.map((member, index) => (
-              <li key={member.user_id} className="flex items-center justify-between rounded-lg border border-neutral-200 px-3 py-2">
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white">
-                    {index + 1}
-                  </span>
-                  <span className="text-sm font-medium text-neutral-800">{member.user_id.slice(0, 8)}</span>
-                  <span className="text-xs uppercase tracking-wide text-neutral-500">{member.role}</span>
-                </div>
-                <span className="text-sm font-semibold text-neutral-900">{member.season_points.toFixed(2)} pts</span>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="mt-4 text-neutral-600">No members yet.</p>
-        )}
-      </section>
+      <LeagueStandings leagueId={id} isMember={Boolean(userMembership)} />
     </main>
   );
 }
