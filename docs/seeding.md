@@ -8,16 +8,18 @@ File: `supabase/seed.sql`
 
 - 4 races in season 2026
 - 16 active markets across those races
-- Optional demo public league (`Apex Seed League`) if a profile already exists
+- Optional demo public league (`Apex Seed League`) if at least one auth user exists
 - Optional pending invite token for invite-flow QA
 
 ## Run order
 
 1. Apply schema migrations first:
+
 - `supabase/migrations/0001_init.sql`
 - `supabase/migrations/0002_rls_policies.sql`
 
-2. Run seed:
+1. Run seed:
+
 - open Supabase SQL Editor
 - paste/run `supabase/seed.sql`
 
@@ -25,8 +27,9 @@ The script is idempotent and safe to run multiple times.
 
 ## Important notes
 
-- Demo league creation requires at least one row in `public.profiles`.
-- If no profiles exist yet, races/markets still seed successfully; league seed is skipped with a SQL notice.
+- Demo league creation requires at least one row in `auth.users`.
+- If `public.profiles` is empty but `auth.users` has a user, the seed auto-creates a minimal profile for league ownership.
+- If no auth users exist yet, races/markets still seed successfully; league seed is skipped with a SQL notice.
 - Invite token seeded for QA:
   - `/invite/77777777-7777-4777-8777-777777777777`
 

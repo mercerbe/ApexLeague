@@ -80,7 +80,7 @@ set
   fetched_at = excluded.fetched_at;
 
 -- ------------------------------------------------------------
--- Optional demo league: created only if at least one profile exists
+-- Optional demo league: created if at least one auth user exists
 -- ------------------------------------------------------------
 do $$
 declare
@@ -92,7 +92,24 @@ begin
   limit 1;
 
   if seed_owner is null then
-    raise notice 'No profiles found. Skipping demo league seed.';
+    select u.id into seed_owner
+    from auth.users u
+    order by u.created_at asc
+    limit 1;
+
+    if seed_owner is not null then
+      insert into public.profiles (id, handle, bio)
+      values (
+        seed_owner,
+        'seed_owner_' || substr(replace(seed_owner::text, '-', ''), 1, 8),
+        'Auto-created seed profile for Apex Seed League ownership.'
+      )
+      on conflict (id) do nothing;
+    end if;
+  end if;
+
+  if seed_owner is null then
+    raise notice 'No auth users found. Skipping demo league seed.';
     return;
   end if;
 
