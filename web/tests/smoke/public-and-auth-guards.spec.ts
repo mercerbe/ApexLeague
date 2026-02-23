@@ -5,7 +5,8 @@ test.describe("public shell and auth guards", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: /APEX/i })).toBeVisible();
     await expect(page.getByRole("link", { name: "Sign In With Google" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Browse Marketplace" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Leagues Hub" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Leaderboard" })).toBeVisible();
     await expect(page.getByRole("link", { name: "How It Works" })).toBeVisible();
   });
 
@@ -28,8 +29,18 @@ test.describe("public shell and auth guards", () => {
     expect(location).toContain("supabase");
   });
 
-  test("internal marketplace API requires auth", async ({ request }) => {
+  test("marketplace API is publicly readable", async ({ request }) => {
     const response = await request.get("/api/league-marketplace");
-    expect(response.status()).toBe(401);
+    expect(response.status()).toBe(200);
+    const payload = (await response.json()) as { leagues?: unknown[] };
+    expect(Array.isArray(payload.leagues)).toBeTruthy();
+  });
+
+  test("leaderboard API is publicly readable", async ({ request }) => {
+    const response = await request.get("/api/leaderboard");
+    expect(response.status()).toBe(200);
+    const payload = (await response.json()) as { top_users?: unknown[]; top_leagues?: unknown[] };
+    expect(Array.isArray(payload.top_users)).toBeTruthy();
+    expect(Array.isArray(payload.top_leagues)).toBeTruthy();
   });
 });

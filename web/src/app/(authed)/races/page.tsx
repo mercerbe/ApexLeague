@@ -14,12 +14,13 @@ interface RaceRecord {
 }
 
 export default async function RacesPage() {
+  const season = new Date().getUTCFullYear();
   const supabase = await createSupabaseServerClient();
 
   const { data: races, error } = await supabase
     .from("races")
     .select("id, season, round, name, country, circuit, start_time, lock_time, status")
-    .eq("season", 2026)
+    .eq("season", season)
     .order("start_time", { ascending: true })
     .returns<RaceRecord[]>();
 
@@ -27,7 +28,7 @@ export default async function RacesPage() {
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight">Races</h1>
-        <p className="mt-2 text-neutral-600">Browse upcoming races and open market cards to place bets before lock time.</p>
+        <p className="mt-2 text-neutral-600">Browse the official F1 season schedule and place bets before each race lock time.</p>
       </header>
 
       {error ? (
@@ -36,7 +37,7 @@ export default async function RacesPage() {
 
       {!error && (!races || races.length === 0) ? (
         <p className="rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-600">
-          No races found for the 2026 season yet.
+          No races found for the {season} season yet.
         </p>
       ) : null}
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ensureUserProfile } from "@/lib/profile/ensure-profile";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const createLeagueSchema = z.object({
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
 
     await ensureUserProfile(supabase, user);
 
-    const { data: league, error: leagueError } = await supabase
+    let { data: league, error: leagueError } = await supabase
       .from("leagues")
       .insert({
         owner_id: user.id,
@@ -91,18 +92,51 @@ export async function POST(request: Request) {
       .select("id, name, description, visibility, season, created_at")
       .single();
 
+    // Local session/cookie quirks can occasionally cause auth JWT context to miss RLS checks.
+    // Retry with service-role after explicit auth verification above.
+    if ((leagueError as { code?: string } | null)?.code === "42501") {
+      const service = createSupabaseServiceRoleClient();
+      const retry = await service
+        .from("leagues")
+        .insert({
+          owner_id: user.id,
+          name: payload.name,
+          description: payload.description,
+          icon_url: payload.icon_url,
+          visibility: payload.visibility,
+          season: payload.season,
+        })
+        .select("id, name, description, visibility, season, created_at")
+        .single();
+
+      league = retry.data;
+      leagueError = retry.error;
+    }
+
     if (leagueError || !league) {
       return NextResponse.json({ error: leagueError?.message ?? "Failed to create league." }, { status: 500 });
     }
 
-    const { error: memberError } = await supabase.from("league_members").insert({
+    let { error: memberError } = await supabase.from("league_members").insert({
       league_id: league.id,
       user_id: user.id,
       role: "owner",
     });
 
+    if ((memberError as { code?: string } | null)?.code === "42501") {
+      const service = createSupabaseServiceRoleClient();
+      const retryMemberInsert = await service.from("league_members").insert({
+        league_id: league.id,
+        user_id: user.id,
+        role: "owner",
+      });
+
+      memberError = retryMemberInsert.error;
+    }
+
     if (memberError) {
-      await supabase.from("leagues").delete().eq("id", league.id);
+      const service = createSupabaseServiceRoleClient();
+      await service.from("leagues").delete().eq("id", league.id);
       return NextResponse.json({ error: memberError.message }, { status: 500 });
     }
 

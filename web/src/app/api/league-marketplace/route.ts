@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service";
 
 const marketplaceQuerySchema = z.object({
   season: z.coerce.number().int().min(2026).max(2100).default(2026),
@@ -27,20 +27,6 @@ interface LeagueRecord {
   members: MemberRecord[] | null;
 }
 
-async function requireAuthedUser() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return { supabase, user: null as null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  }
-
-  return { supabase, user, error: null as NextResponse<unknown> | null };
-}
-
 function asNumber(value: number | string) {
   if (typeof value === "number") {
     return value;
@@ -51,12 +37,6 @@ function asNumber(value: number | string) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireAuthedUser();
-
-  if (auth.error) {
-    return auth.error;
-  }
-
   const url = new URL(request.url);
   const parsedQuery = marketplaceQuerySchema.safeParse({
     season: url.searchParams.get("season") ?? undefined,
@@ -68,8 +48,9 @@ export async function GET(request: Request) {
   }
 
   const { season, limit } = parsedQuery.data;
+  const service = createSupabaseServiceRoleClient();
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await service
     .from("leagues")
     .select(
       "id, name, description, season, visibility, created_at, members:league_members(user_id, season_points, role, profile:profiles(handle, avatar_url))",
