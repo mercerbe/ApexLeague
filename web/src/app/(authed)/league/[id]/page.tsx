@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { JoinLeagueButton } from "@/app/(authed)/league/[id]/join-league-button";
 import { InviteForm } from "@/app/(authed)/league/[id]/invite-form";
 import { InviteHistory } from "@/app/(authed)/league/[id]/invite-history";
+import { LeagueFeed } from "@/app/(authed)/league/[id]/league-feed";
 
 interface LeaguePageProps {
   params: Promise<{ id: string }>;
@@ -81,6 +82,8 @@ export default async function LeaguePage({ params }: LeaguePageProps) {
           <InviteHistory leagueId={id} />
         </>
       ) : null}
+
+      <LeagueFeed leagueId={id} isMember={Boolean(userMembership)} />
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-6">
         <h2 className="text-xl font-semibold">Standings (Current)</h2>
