@@ -6,6 +6,7 @@ import { InviteForm } from "@/app/(authed)/league/[id]/invite-form";
 import { InviteHistory } from "@/app/(authed)/league/[id]/invite-history";
 import { LeagueFeed } from "@/app/(authed)/league/[id]/league-feed";
 import { LeagueStandings } from "@/app/(authed)/league/[id]/league-standings";
+import { LeagueTrophyCase } from "@/app/(authed)/league/[id]/league-trophy-case";
 
 interface LeaguePageProps {
   params: Promise<{ id: string }>;
@@ -82,8 +83,12 @@ export default async function LeaguePage({ params }: LeaguePageProps) {
         </>
       ) : null}
 
+      <div className="grid gap-6 lg:grid-cols-2">
+        <LeagueStandings leagueId={id} isMember={Boolean(userMembership)} />
+        <LeagueTrophyCase leagueId={id} isMember={Boolean(userMembership)} />
+      </div>
+
       <LeagueFeed leagueId={id} isMember={Boolean(userMembership)} />
-      <LeagueStandings leagueId={id} isMember={Boolean(userMembership)} />
     </main>
   );
 }
