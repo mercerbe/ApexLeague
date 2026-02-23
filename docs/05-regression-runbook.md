@@ -10,7 +10,7 @@ Base URL (production):
 1. OAuth login: **Implemented**
 2. Create profile: **Partial** (profile row auto-created; no full profile editor yet)
 3. Join league: **Implemented**
-4. Create league + Gmail invites: **Partial** (invite link flow implemented; no outbound Gmail sending yet)
+4. Create league + email invites: **Partial** (provider-backed email send implemented; still not Gmail-specific integration)
 5. 2026 schedule + 100-token betting: **Implemented** (depends on seeded races/markets)
 6. League chat/feed: **Implemented**
 7. League leaderboard: **Partial** (standings list exists, limited presentation)
@@ -39,7 +39,7 @@ Base URL (production):
 - On `/leagues`, create a new league
 - On `/league/{id}`, use invite form with a valid email
 - Expected: invite token/link appears in UI and in invite history
-- Current limitation: no SMTP/Gmail delivery; invite URL is generated and shareable manually
+- Current limitation: invite email uses provider credentials (Resend), not direct Gmail API integration
 
 ### 5) Races + betting bankroll
 - Navigate to `/races`

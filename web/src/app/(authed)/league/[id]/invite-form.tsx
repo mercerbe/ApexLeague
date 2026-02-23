@@ -10,6 +10,14 @@ interface InviteResponse {
     token: string;
     expires_at: string;
   };
+  invite_url?: string;
+  email_delivery?: {
+    status: "sent" | "skipped" | "failed";
+    provider?: string;
+    id?: string;
+    reason?: string;
+    error?: string;
+  };
   error?: string;
 }
 
@@ -19,6 +27,7 @@ export function InviteForm({ leagueId }: { leagueId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [invitePath, setInvitePath] = useState<string | null>(null);
+  const [deliveryMessage, setDeliveryMessage] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -27,6 +36,7 @@ export function InviteForm({ leagueId }: { leagueId: string }) {
     setError(null);
     setSuccessMessage(null);
     setInvitePath(null);
+    setDeliveryMessage(null);
 
     try {
       const response = await fetch(`/api/leagues/${leagueId}/invites`, {
@@ -46,7 +56,16 @@ export function InviteForm({ leagueId }: { leagueId: string }) {
       }
 
       setSuccessMessage(`Invite created for ${payload.invite.invitee_email}`);
-      setInvitePath(`/invite/${payload.invite.token}`);
+      setInvitePath(payload.invite_url ?? `/invite/${payload.invite.token}`);
+
+      if (payload.email_delivery?.status === "sent") {
+        setDeliveryMessage("Invite email sent.");
+      } else if (payload.email_delivery?.status === "skipped") {
+        setDeliveryMessage(`Invite email skipped: ${payload.email_delivery.reason ?? "provider not configured"}`);
+      } else if (payload.email_delivery?.status === "failed") {
+        setDeliveryMessage(`Invite email failed: ${payload.email_delivery.error ?? "unknown provider error"}`);
+      }
+
       setEmail("");
     } catch (inviteError) {
       setError(inviteError instanceof Error ? inviteError.message : "Unable to create invite.");
@@ -80,6 +99,7 @@ export function InviteForm({ leagueId }: { leagueId: string }) {
 
       {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
       {successMessage ? <p className="mt-3 text-sm text-green-700">{successMessage}</p> : null}
+      {deliveryMessage ? <p className="mt-1 text-sm text-neutral-700">{deliveryMessage}</p> : null}
       {invitePath ? (
         <p className="mt-2 text-sm text-neutral-700">
           Invite link:{" "}

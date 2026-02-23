@@ -11,6 +11,8 @@ const serverEnvSchema = publicEnvSchema.extend({
   SETTLEMENT_CRON_SECRET: z.string().min(1).optional(),
   CRON_SECRET: z.string().min(1).optional(),
   F1_RESULTS_PROVIDER: z.string().trim().optional(),
+  RESEND_API_KEY: z.string().min(1).optional(),
+  INVITE_EMAIL_FROM: z.string().trim().email().optional(),
 });
 
 export function getPublicEnv() {
@@ -30,5 +32,7 @@ export function getServerEnv() {
     SETTLEMENT_CRON_SECRET: process.env.SETTLEMENT_CRON_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
     F1_RESULTS_PROVIDER: process.env.F1_RESULTS_PROVIDER,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    INVITE_EMAIL_FROM: process.env.INVITE_EMAIL_FROM,
   });
 }

@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ensureUserProfile } from "@/lib/profile/ensure-profile";
+import { getServerEnv } from "@/lib/env";
+import { sendLeagueInviteEmail } from "@/lib/email/send-league-invite-email";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const createInviteSchema = z.object({
@@ -132,7 +134,29 @@ export async function POST(request: Request, context: { params: Promise<{ league
     return NextResponse.json({ error: typedError?.message ?? "Failed to create invite." }, { status: 500 });
   }
 
-  return NextResponse.json({ invite }, { status: 201 });
+  const env = getServerEnv();
+  const inviteUrl = `${env.NEXT_PUBLIC_APP_URL}/invite/${invite.token}`;
+
+  const { data: leagueInfo } = await auth.supabase.from("leagues").select("name").eq("id", leagueId).maybeSingle<{ name: string }>();
+
+  const { data: inviterProfile } = await auth.supabase
+    .from("profiles")
+    .select("handle")
+    .eq("id", user.id)
+    .maybeSingle<{ handle: string | null }>();
+
+  const inviterDisplayName = inviterProfile?.handle?.trim() || user.email || user.id.slice(0, 8);
+  const leagueName = leagueInfo?.name ?? "Apex League";
+
+  const emailDelivery = await sendLeagueInviteEmail({
+    to: invite.invitee_email,
+    inviteUrl,
+    leagueName,
+    inviterDisplayName,
+    expiresAtIso: invite.expires_at,
+  });
+
+  return NextResponse.json({ invite, invite_url: inviteUrl, email_delivery: emailDelivery }, { status: 201 });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ leagueId: string }> }) {

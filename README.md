@@ -86,12 +86,15 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 SUPABASE_SERVICE_ROLE_KEY=
 ODDS_API_KEY=
 F1_RESULTS_PROVIDER=openf1
+RESEND_API_KEY=
+INVITE_EMAIL_FROM=invites@yourdomain.com
 ```
 
 Notes:
 
 - `SUPABASE_SERVICE_ROLE_KEY` is server-only and must never be exposed to the client.
 - `F1_RESULTS_PROVIDER=openf1` is the current integration direction.
+- Invite delivery uses Resend when `RESEND_API_KEY` and `INVITE_EMAIL_FROM` are set.
 
 ### 4. Run the app
 
@@ -149,6 +152,7 @@ Required Vercel environment variables:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `ODDS_API_KEY` (when odds ingestion is enabled)
 - `F1_RESULTS_PROVIDER` (currently `openf1`)
+- `RESEND_API_KEY` and `INVITE_EMAIL_FROM` (for invite email delivery)
 
 ## Product Documentation
 
