@@ -118,6 +118,7 @@ Apply migrations in order from `supabase/migrations/`:
 
 1. `0001_init.sql`
 2. `0002_rls_policies.sql`
+3. `0003_invite_email_delivery.sql`
 
 These establish:
 

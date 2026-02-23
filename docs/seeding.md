@@ -17,6 +17,7 @@ File: `supabase/seed.sql`
 
 - `supabase/migrations/0001_init.sql`
 - `supabase/migrations/0002_rls_policies.sql`
+- `supabase/migrations/0003_invite_email_delivery.sql`
 
 1. Run seed:
 

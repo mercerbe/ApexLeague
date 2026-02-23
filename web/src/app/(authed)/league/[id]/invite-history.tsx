@@ -11,6 +11,12 @@ interface InviteRecord {
   accepted_by_user_id: string | null;
   accepted_at: string | null;
   created_at: string;
+  email_delivery_status: "sent" | "skipped" | "failed" | null;
+  email_delivery_provider: string | null;
+  email_delivery_provider_id: string | null;
+  email_delivery_error: string | null;
+  email_sent_at: string | null;
+  last_delivery_attempt_at: string | null;
 }
 
 interface InviteHistoryResponse {
@@ -22,7 +28,9 @@ export function InviteHistory({ leagueId }: { leagueId: string }) {
   const [invites, setInvites] = useState<InviteRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRevokingId, setIsRevokingId] = useState<string | null>(null);
+  const [isResendingId, setIsResendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const pendingCount = useMemo(() => invites.filter((invite) => invite.status === "pending").length, [invites]);
 
@@ -57,6 +65,7 @@ export function InviteHistory({ leagueId }: { leagueId: string }) {
   async function handleRevoke(inviteId: string) {
     setIsRevokingId(inviteId);
     setError(null);
+    setNotice(null);
 
     try {
       const response = await fetch(`/api/leagues/${leagueId}/invites`, {
@@ -84,6 +93,63 @@ export function InviteHistory({ leagueId }: { leagueId: string }) {
     }
   }
 
+  async function handleResend(inviteId: string) {
+    setIsResendingId(inviteId);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetch(`/api/leagues/${leagueId}/invites`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          invite_id: inviteId,
+          action: "resend",
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        invite?: InviteRecord;
+        email_delivery?: { status: "sent" | "skipped" | "failed"; reason?: string; error?: string };
+        error?: string;
+      };
+
+      if (!response.ok || !payload.invite) {
+        throw new Error(payload.error ?? "Unable to resend invite.");
+      }
+
+      setInvites((current) => current.map((invite) => (invite.id === inviteId ? payload.invite! : invite)));
+
+      if (payload.email_delivery?.status === "sent") {
+        setNotice("Invite email sent.");
+      } else if (payload.email_delivery?.status === "skipped") {
+        setNotice(`Invite email skipped: ${payload.email_delivery.reason ?? "provider not configured"}`);
+      } else if (payload.email_delivery?.status === "failed") {
+        setNotice(`Invite email failed: ${payload.email_delivery.error ?? "unknown provider error"}`);
+      } else {
+        setNotice("Invite resent.");
+      }
+    } catch (resendError) {
+      setError(resendError instanceof Error ? resendError.message : "Unable to resend invite.");
+    } finally {
+      setIsResendingId(null);
+    }
+  }
+
+  async function handleCopyInviteLink(token: string) {
+    const link = `${window.location.origin}/invite/${token}`;
+    setError(null);
+
+    try {
+      await navigator.clipboard.writeText(link);
+      setNotice("Invite link copied.");
+    } catch {
+      setNotice(link);
+    }
+  }
+
   return (
     <section className="rounded-2xl border border-neutral-200 bg-white p-6">
       <div className="flex items-center justify-between gap-3">
@@ -95,6 +161,7 @@ export function InviteHistory({ leagueId }: { leagueId: string }) {
       </div>
 
       {error ? <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+      {notice ? <p className="mt-4 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700">{notice}</p> : null}
 
       {isLoading ? <p className="mt-4 text-sm text-neutral-600">Loading invite history...</p> : null}
 
@@ -110,6 +177,11 @@ export function InviteHistory({ leagueId }: { leagueId: string }) {
                   <p className="text-xs text-neutral-500">Created: {new Date(invite.created_at).toLocaleString()}</p>
                   <p className="text-xs text-neutral-500">Expires: {new Date(invite.expires_at).toLocaleString()}</p>
                   <p className="text-xs text-neutral-500">Token: {invite.token}</p>
+                  <p className="text-xs text-neutral-500">
+                    Email delivery: {invite.email_delivery_status ?? "not attempted"}
+                    {invite.last_delivery_attempt_at ? ` • Last attempt ${new Date(invite.last_delivery_attempt_at).toLocaleString()}` : ""}
+                  </p>
+                  {invite.email_delivery_error ? <p className="text-xs text-red-600">Error: {invite.email_delivery_error}</p> : null}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -126,14 +198,31 @@ export function InviteHistory({ leagueId }: { leagueId: string }) {
                   </span>
 
                   {invite.status === "pending" ? (
-                    <button
-                      type="button"
-                      onClick={() => handleRevoke(invite.id)}
-                      disabled={isRevokingId === invite.id}
-                      className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isRevokingId === invite.id ? "Revoking..." : "Revoke"}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyInviteLink(invite.token)}
+                        className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700"
+                      >
+                        Copy Link
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleResend(invite.id)}
+                        disabled={isResendingId === invite.id}
+                        className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isResendingId === invite.id ? "Resending..." : "Resend"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRevoke(invite.id)}
+                        disabled={isRevokingId === invite.id}
+                        className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isRevokingId === invite.id ? "Revoking..." : "Revoke"}
+                      </button>
+                    </>
                   ) : null}
                 </div>
               </div>

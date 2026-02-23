@@ -21,6 +21,29 @@ const revokeInviteSchema = z.object({
   action: z.literal("revoke"),
 });
 
+const resendInviteSchema = z.object({
+  invite_id: z.string().uuid(),
+  action: z.literal("resend"),
+});
+
+const inviteActionSchema = z.union([revokeInviteSchema, resendInviteSchema]);
+
+interface InviteRecord {
+  id: string;
+  league_id: string;
+  invitee_email: string;
+  status: "pending" | "accepted" | "expired" | "revoked";
+  token: string;
+  expires_at: string;
+  created_at: string;
+  email_delivery_status: "sent" | "skipped" | "failed" | null;
+  email_delivery_provider: string | null;
+  email_delivery_provider_id: string | null;
+  email_delivery_error: string | null;
+  email_sent_at: string | null;
+  last_delivery_attempt_at: string | null;
+}
+
 async function requireAuthedUser() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -51,7 +74,9 @@ export async function GET(_request: Request, context: { params: Promise<{ league
 
   const { data, error } = await auth.supabase
     .from("league_invites")
-    .select("id, invitee_email, status, token, expires_at, accepted_by_user_id, accepted_at, created_at")
+    .select(
+      "id, invitee_email, status, token, expires_at, accepted_by_user_id, accepted_at, created_at, email_delivery_status, email_delivery_provider, email_delivery_provider_id, email_delivery_error, email_sent_at, last_delivery_attempt_at",
+    )
     .eq("league_id", leagueId)
     .order("created_at", { ascending: false })
     .limit(200);
@@ -67,6 +92,53 @@ export async function GET(_request: Request, context: { params: Promise<{ league
   }
 
   return NextResponse.json({ invites: data ?? [] });
+}
+
+async function attemptInviteDelivery(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  args: {
+    invite: InviteRecord;
+    leagueName: string;
+    inviterDisplayName: string;
+  },
+) {
+  const env = getServerEnv();
+  const inviteUrl = `${env.NEXT_PUBLIC_APP_URL}/invite/${args.invite.token}`;
+
+  const emailDelivery = await sendLeagueInviteEmail({
+    to: args.invite.invitee_email,
+    inviteUrl,
+    leagueName: args.leagueName,
+    inviterDisplayName: args.inviterDisplayName,
+    expiresAtIso: args.invite.expires_at,
+  });
+
+  const nowIso = new Date().toISOString();
+  const deliveryUpdate = {
+    email_delivery_status: emailDelivery.status,
+    email_delivery_provider: emailDelivery.status === "skipped" ? null : emailDelivery.provider,
+    email_delivery_provider_id: emailDelivery.status === "sent" ? emailDelivery.id : null,
+    email_delivery_error:
+      emailDelivery.status === "failed" ? emailDelivery.error : emailDelivery.status === "skipped" ? emailDelivery.reason : null,
+    email_sent_at: emailDelivery.status === "sent" ? nowIso : null,
+    last_delivery_attempt_at: nowIso,
+  };
+
+  const { data: updatedInvite, error: updateError } = await supabase
+    .from("league_invites")
+    .update(deliveryUpdate)
+    .eq("id", args.invite.id)
+    .select(
+      "id, league_id, invitee_email, status, token, expires_at, created_at, email_delivery_status, email_delivery_provider, email_delivery_provider_id, email_delivery_error, email_sent_at, last_delivery_attempt_at",
+    )
+    .single<InviteRecord>();
+
+  return {
+    inviteUrl,
+    emailDelivery,
+    updatedInvite: updatedInvite ?? args.invite,
+    updateError,
+  };
 }
 
 export async function POST(request: Request, context: { params: Promise<{ leagueId: string }> }) {
@@ -121,8 +193,10 @@ export async function POST(request: Request, context: { params: Promise<{ league
       expires_at: expiresAt,
       status: "pending",
     })
-    .select("id, league_id, invitee_email, status, token, expires_at, created_at")
-    .single();
+    .select(
+      "id, league_id, invitee_email, status, token, expires_at, created_at, email_delivery_status, email_delivery_provider, email_delivery_provider_id, email_delivery_error, email_sent_at, last_delivery_attempt_at",
+    )
+    .single<InviteRecord>();
 
   if (inviteError || !invite) {
     const typedError = inviteError as PostgresError | null;
@@ -133,9 +207,6 @@ export async function POST(request: Request, context: { params: Promise<{ league
 
     return NextResponse.json({ error: typedError?.message ?? "Failed to create invite." }, { status: 500 });
   }
-
-  const env = getServerEnv();
-  const inviteUrl = `${env.NEXT_PUBLIC_APP_URL}/invite/${invite.token}`;
 
   const { data: leagueInfo } = await auth.supabase.from("leagues").select("name").eq("id", leagueId).maybeSingle<{ name: string }>();
 
@@ -148,15 +219,20 @@ export async function POST(request: Request, context: { params: Promise<{ league
   const inviterDisplayName = inviterProfile?.handle?.trim() || user.email || user.id.slice(0, 8);
   const leagueName = leagueInfo?.name ?? "Apex League";
 
-  const emailDelivery = await sendLeagueInviteEmail({
-    to: invite.invitee_email,
-    inviteUrl,
+  const deliveryResult = await attemptInviteDelivery(auth.supabase, {
+    invite,
     leagueName,
     inviterDisplayName,
-    expiresAtIso: invite.expires_at,
   });
 
-  return NextResponse.json({ invite, invite_url: inviteUrl, email_delivery: emailDelivery }, { status: 201 });
+  return NextResponse.json(
+    {
+      invite: deliveryResult.updatedInvite,
+      invite_url: deliveryResult.inviteUrl,
+      email_delivery: deliveryResult.emailDelivery,
+    },
+    { status: 201 },
+  );
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ leagueId: string }> }) {
@@ -173,11 +249,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ leagu
     return auth.error;
   }
 
-  let payload: z.infer<typeof revokeInviteSchema>;
+  if (!auth.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let payload: z.infer<typeof inviteActionSchema>;
 
   try {
     const json = await request.json();
-    payload = revokeInviteSchema.parse(json);
+    payload = inviteActionSchema.parse(json);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid request payload", details: error.flatten() }, { status: 400 });
@@ -186,28 +266,76 @@ export async function PATCH(request: Request, context: { params: Promise<{ leagu
     return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
   }
 
-  const { data: updated, error } = await auth.supabase
+  if (payload.action === "revoke") {
+    const { data: updated, error } = await auth.supabase
+      .from("league_invites")
+      .update({ status: "revoked" })
+      .eq("league_id", leagueId)
+      .eq("id", payload.invite_id)
+      .eq("status", "pending")
+      .select("id, status")
+      .maybeSingle();
+
+    if (error) {
+      const typedError = error as PostgresError;
+
+      if (typedError.code === "42501") {
+        return NextResponse.json({ error: "Only league owner/admin can revoke invites." }, { status: 403 });
+      }
+
+      return NextResponse.json({ error: typedError.message }, { status: 500 });
+    }
+
+    if (!updated) {
+      return NextResponse.json({ error: "Invite not found or no longer pending." }, { status: 409 });
+    }
+
+    return NextResponse.json({ invite: updated });
+  }
+
+  const { data: invite, error: inviteFetchError } = await auth.supabase
     .from("league_invites")
-    .update({ status: "revoked" })
+    .select(
+      "id, league_id, invitee_email, status, token, expires_at, created_at, email_delivery_status, email_delivery_provider, email_delivery_provider_id, email_delivery_error, email_sent_at, last_delivery_attempt_at",
+    )
     .eq("league_id", leagueId)
     .eq("id", payload.invite_id)
-    .eq("status", "pending")
-    .select("id, status")
-    .maybeSingle();
+    .maybeSingle<InviteRecord>();
 
-  if (error) {
-    const typedError = error as PostgresError;
+  if (inviteFetchError) {
+    const typedError = inviteFetchError as PostgresError;
 
     if (typedError.code === "42501") {
-      return NextResponse.json({ error: "Only league owner/admin can revoke invites." }, { status: 403 });
+      return NextResponse.json({ error: "Only league owner/admin can resend invites." }, { status: 403 });
     }
 
     return NextResponse.json({ error: typedError.message }, { status: 500 });
   }
 
-  if (!updated) {
-    return NextResponse.json({ error: "Invite not found or no longer pending." }, { status: 409 });
+  if (!invite || invite.status !== "pending") {
+    return NextResponse.json({ error: "Only pending invites can be resent." }, { status: 409 });
   }
 
-  return NextResponse.json({ invite: updated });
+  const { data: leagueInfo } = await auth.supabase.from("leagues").select("name").eq("id", leagueId).maybeSingle<{ name: string }>();
+
+  const { data: inviterProfile } = await auth.supabase
+    .from("profiles")
+    .select("handle")
+    .eq("id", auth.user.id)
+    .maybeSingle<{ handle: string | null }>();
+
+  const inviterDisplayName = inviterProfile?.handle?.trim() || auth.user.email || auth.user.id.slice(0, 8);
+  const leagueName = leagueInfo?.name ?? "Apex League";
+
+  const deliveryResult = await attemptInviteDelivery(auth.supabase, {
+    invite,
+    leagueName,
+    inviterDisplayName,
+  });
+
+  return NextResponse.json({
+    invite: deliveryResult.updatedInvite,
+    invite_url: deliveryResult.inviteUrl,
+    email_delivery: deliveryResult.emailDelivery,
+  });
 }
