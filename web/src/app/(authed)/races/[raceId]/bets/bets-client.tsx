@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 interface LeagueOption {
   id: string;
@@ -48,6 +48,28 @@ interface PlaceBetsResponse {
   error?: string;
 }
 
+interface ExistingBet {
+  id: string;
+  market_id: string;
+  selection_key: string;
+  stake: number;
+  decimal_odds_snapshot: number;
+  status: "pending" | "won" | "lost" | "void";
+  placed_at: string;
+  market: {
+    selection_label: string;
+    market_type: string;
+  } | null;
+}
+
+interface MyBetsResponse {
+  bankroll?: number;
+  pending_stake?: number;
+  remaining_tokens?: number;
+  bets?: ExistingBet[];
+  error?: string;
+}
+
 function asNumber(value: string | number) {
   if (typeof value === "number") {
     return value;
@@ -60,14 +82,16 @@ function asNumber(value: string | number) {
 export function BetsClient({ raceId, leagues }: { raceId: string; leagues: LeagueOption[] }) {
   const [race, setRace] = useState<RaceSummary | null>(null);
   const [markets, setMarkets] = useState<MarketRecord[]>([]);
+  const [existingBets, setExistingBets] = useState<ExistingBet[]>([]);
   const [stakes, setStakes] = useState<Record<string, string>>({});
   const [selectedLeagueId, setSelectedLeagueId] = useState<string>(leagues[0]?.id ?? "");
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingExistingBets, setIsLoadingExistingBets] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const totalStake = useMemo(() => {
+  const totalDraftStake = useMemo(() => {
     return Object.values(stakes).reduce((acc, value) => {
       const amount = Number(value);
       if (!Number.isFinite(amount) || amount <= 0) {
@@ -77,6 +101,45 @@ export function BetsClient({ raceId, leagues }: { raceId: string; leagues: Leagu
       return acc + amount;
     }, 0);
   }, [stakes]);
+
+  const pendingStake = useMemo(
+    () => existingBets.filter((bet) => bet.status === "pending").reduce((acc, bet) => acc + bet.stake, 0),
+    [existingBets],
+  );
+
+  const remainingTokensBeforeDraft = useMemo(() => Number((100 - pendingStake).toFixed(2)), [pendingStake]);
+  const remainingTokensAfterDraft = useMemo(
+    () => Number((100 - (pendingStake + totalDraftStake)).toFixed(2)),
+    [pendingStake, totalDraftStake],
+  );
+
+  const loadExistingBets = useCallback(async () => {
+    if (!selectedLeagueId) {
+      setExistingBets([]);
+      return;
+    }
+
+    setIsLoadingExistingBets(true);
+
+    try {
+      const response = await fetch(`/api/races/${raceId}/bets/me?league_id=${selectedLeagueId}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      const payload = (await response.json()) as MyBetsResponse;
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to load your bets for this race.");
+      }
+
+      setExistingBets(payload.bets ?? []);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Unable to load your bets for this race.");
+    } finally {
+      setIsLoadingExistingBets(false);
+    }
+  }, [raceId, selectedLeagueId]);
 
   useEffect(() => {
     let mounted = true;
@@ -120,6 +183,10 @@ export function BetsClient({ raceId, leagues }: { raceId: string; leagues: Leagu
     };
   }, [raceId]);
 
+  useEffect(() => {
+    loadExistingBets();
+  }, [loadExistingBets]);
+
   async function handlePlaceBets() {
     setError(null);
     setSuccess(null);
@@ -138,6 +205,13 @@ export function BetsClient({ raceId, leagues }: { raceId: string; leagues: Leagu
 
     if (!selectedLeagueId) {
       setError("Select a league before placing bets.");
+      return;
+    }
+
+    if (pendingStake + totalDraftStake > 100) {
+      setError(
+        `You have ${remainingTokensBeforeDraft.toFixed(2)} tokens remaining for this race. Reduce draft stake before placing bets.`,
+      );
       return;
     }
 
@@ -162,9 +236,10 @@ export function BetsClient({ raceId, leagues }: { raceId: string; leagues: Leagu
       }
 
       setSuccess(
-        `Placed ${payload.accepted_bets?.length ?? 0} bet(s). Remaining points this race: ${payload.remaining_points ?? "n/a"}`,
+        `Placed ${payload.accepted_bets?.length ?? 0} bet(s). Remaining tokens this race: ${payload.remaining_points ?? "n/a"}`,
       );
       setStakes({});
+      await loadExistingBets();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Unable to place bets.");
     } finally {
@@ -177,7 +252,8 @@ export function BetsClient({ raceId, leagues }: { raceId: string; leagues: Leagu
       <header>
         <h1 className="text-3xl font-semibold tracking-tight">{race?.name ?? "Race Markets"}</h1>
         <p className="mt-2 text-neutral-600">
-          Allocate up to 100 points for this race. Markets lock at {race ? new Date(race.lock_time).toLocaleString() : "-"}.
+          Each race starts with 100 tokens. Distribute them across available markets before lock at{" "}
+          {race ? new Date(race.lock_time).toLocaleString() : "-"}.
         </p>
       </header>
 
@@ -185,12 +261,15 @@ export function BetsClient({ raceId, leagues }: { raceId: string; leagues: Leagu
       {success ? <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{success}</p> : null}
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-6">
-        <div className="grid gap-4 md:grid-cols-[1fr_220px_180px] md:items-end">
+        <div className="grid gap-4 md:grid-cols-[1fr_220px_220px_180px] md:items-end">
           <label className="space-y-1">
             <span className="text-sm font-medium text-neutral-700">League</span>
             <select
               value={selectedLeagueId}
-              onChange={(event) => setSelectedLeagueId(event.target.value)}
+              onChange={(event) => {
+                setSelectedLeagueId(event.target.value);
+                setStakes({});
+              }}
               className="w-full rounded-lg border border-neutral-300 px-3 py-2"
             >
               {leagues.map((league) => (
@@ -201,17 +280,54 @@ export function BetsClient({ raceId, leagues }: { raceId: string; leagues: Leagu
             </select>
           </label>
 
-          <div className="rounded-lg bg-neutral-100 px-3 py-2 text-sm text-neutral-700">Total stake: {totalStake.toFixed(2)} / 100</div>
+          <div className="rounded-lg bg-neutral-100 px-3 py-2 text-sm text-neutral-700">
+            Placed: {pendingStake.toFixed(2)} / 100
+          </div>
+
+          <div
+            className={`rounded-lg px-3 py-2 text-sm ${remainingTokensAfterDraft < 0 ? "bg-red-100 text-red-700" : "bg-neutral-100 text-neutral-700"}`}
+          >
+            Draft: {totalDraftStake.toFixed(2)} • Remaining after submit: {remainingTokensAfterDraft.toFixed(2)}
+          </div>
 
           <button
             type="button"
             onClick={handlePlaceBets}
-            disabled={isSubmitting || totalStake <= 0}
+            disabled={isSubmitting || totalDraftStake <= 0 || remainingTokensAfterDraft < 0}
             className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSubmitting ? "Placing..." : "Place Bets"}
           </button>
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-neutral-200 bg-white p-6">
+        <h2 className="text-xl font-semibold">Your Bets (Selected League)</h2>
+
+        {isLoadingExistingBets ? <p className="mt-4 text-sm text-neutral-600">Loading your race bets...</p> : null}
+
+        {!isLoadingExistingBets && existingBets.length === 0 ? (
+          <p className="mt-4 text-sm text-neutral-600">No bets placed for this race yet in the selected league.</p>
+        ) : null}
+
+        {!isLoadingExistingBets && existingBets.length > 0 ? (
+          <ul className="mt-4 space-y-2">
+            {existingBets.map((bet) => (
+              <li key={bet.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 px-3 py-3">
+                <div>
+                  <p className="text-sm font-medium text-neutral-900">{bet.market?.selection_label ?? bet.selection_key}</p>
+                  <p className="text-xs text-neutral-500">{bet.market?.market_type ?? "market"}</p>
+                  <p className="text-xs text-neutral-500">Placed: {new Date(bet.placed_at).toLocaleString()}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-neutral-900">Stake {bet.stake.toFixed(2)}</span>
+                  <span className="text-sm text-neutral-700">Odds {bet.decimal_odds_snapshot.toFixed(2)}</span>
+                  <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-700">{bet.status}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-6">
