@@ -24,6 +24,9 @@ export default async function AuthedLayout({ children }: { children: React.React
             <Link href="/races" className="text-sm font-medium text-neutral-600 hover:text-neutral-900">
               Races
             </Link>
+            <Link href="/marketplace" className="text-sm font-medium text-neutral-600 hover:text-neutral-900">
+              Marketplace
+            </Link>
           </nav>
           <form action="/auth/signout" method="post">
             <button
