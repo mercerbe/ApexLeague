@@ -9,6 +9,8 @@ const publicEnvSchema = z.object({
 const serverEnvSchema = publicEnvSchema.extend({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
   SETTLEMENT_CRON_SECRET: z.string().min(1).optional(),
+  CRON_SECRET: z.string().min(1).optional(),
+  F1_RESULTS_PROVIDER: z.string().trim().optional(),
 });
 
 export function getPublicEnv() {
@@ -26,5 +28,7 @@ export function getServerEnv() {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     SETTLEMENT_CRON_SECRET: process.env.SETTLEMENT_CRON_SECRET,
+    CRON_SECRET: process.env.CRON_SECRET,
+    F1_RESULTS_PROVIDER: process.env.F1_RESULTS_PROVIDER,
   });
 }

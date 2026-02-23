@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getServerEnv } from "@/lib/env";
+import { isAuthorizedInternalRequest } from "@/lib/internal/auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service";
 
 const paramsSchema = z.object({
@@ -172,20 +172,10 @@ export async function POST(request: Request, context: { params: Promise<{ raceId
     return NextResponse.json({ error: "Invalid race id." }, { status: 400 });
   }
 
-  const env = getServerEnv();
-  const configuredSecret = env.SETTLEMENT_CRON_SECRET;
+  const auth = isAuthorizedInternalRequest(request);
 
-  if (!configuredSecret) {
-    return NextResponse.json({ error: "SETTLEMENT_CRON_SECRET is not configured." }, { status: 500 });
-  }
-
-  const authHeader = request.headers.get("authorization");
-  const headerSecret = request.headers.get("x-settlement-secret");
-  const bearerSecret = authHeader?.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : null;
-  const suppliedSecret = bearerSecret ?? headerSecret;
-
-  if (!suppliedSecret || suppliedSecret !== configuredSecret) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.reason }, { status: auth.reason === "Unauthorized" ? 401 : 500 });
   }
 
   const { raceId } = parsedParams.data;
