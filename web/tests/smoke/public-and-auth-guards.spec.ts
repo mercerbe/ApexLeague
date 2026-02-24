@@ -5,9 +5,9 @@ test.describe("public shell and auth guards", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: /APEX/i })).toBeVisible();
     await expect(page.getByRole("link", { name: "Sign In With Google" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Leagues Hub" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Leaderboard" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "How It Works" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Leagues" }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: "Leaderboard" }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: "How It Works" }).first()).toBeVisible();
   });
 
   test("protected pages redirect unauthenticated users to landing", async ({ page }) => {

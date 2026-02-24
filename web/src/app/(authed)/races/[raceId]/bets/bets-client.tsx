@@ -13,6 +13,16 @@ interface RaceSummary {
   name: string;
   season: number;
   round: number;
+  country: string | null;
+  circuit: string | null;
+  venue_name: string | null;
+  city: string | null;
+  timezone: string | null;
+  race_description: string | null;
+  image_url: string | null;
+  banner_url: string | null;
+  poster_url: string | null;
+  highlights_url: string | null;
   status: "scheduled" | "locked" | "settling" | "settled";
   lock_time: string;
   start_time: string;
@@ -256,6 +266,42 @@ export function BetsClient({ raceId, leagues }: { raceId: string; leagues: Leagu
           {race ? new Date(race.lock_time).toLocaleString() : "-"}.
         </p>
       </header>
+
+      {race ? (
+        <section className="rounded-2xl border border-neutral-200 bg-white p-6">
+          <div className="grid gap-4 md:grid-cols-[1fr_220px]">
+            <div>
+              <p className="text-sm text-neutral-700">
+                Round {race.round} • Season {race.season}
+              </p>
+              <p className="mt-1 text-sm text-neutral-700">
+                {race.country ?? "Unknown country"}
+                {race.city ? ` • ${race.city}` : ""}
+                {race.circuit ? ` • ${race.circuit}` : race.venue_name ? ` • ${race.venue_name}` : ""}
+              </p>
+              <p className="mt-1 text-xs text-neutral-500">
+                Start: {new Date(race.start_time).toLocaleString()}
+                {race.timezone ? ` (${race.timezone})` : ""}
+              </p>
+              {race.race_description ? <p className="mt-3 line-clamp-4 text-sm text-neutral-700">{race.race_description}</p> : null}
+              {race.highlights_url ? (
+                <a href={race.highlights_url} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-medium text-red-700 hover:underline">
+                  Watch race highlights
+                </a>
+              ) : null}
+            </div>
+
+            {race.image_url || race.banner_url || race.poster_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={race.image_url ?? race.banner_url ?? race.poster_url ?? ""}
+                alt={`${race.name} artwork`}
+                className="h-40 w-full rounded-xl border border-neutral-200 object-cover"
+              />
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       {error ? <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
       {success ? <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{success}</p> : null}

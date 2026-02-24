@@ -46,10 +46,10 @@ export default async function LandingPage() {
               </a>
             )}
             <a
-              href="/marketplace"
+              href="/leagues"
               className="rounded-lg border border-neutral-800 px-4 py-2 text-sm font-semibold text-neutral-900 hover:bg-neutral-100"
             >
-              Leagues Hub
+              Leagues
             </a>
             <a
               href="/leaderboard"

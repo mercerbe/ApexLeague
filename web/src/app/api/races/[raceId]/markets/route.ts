@@ -32,7 +32,9 @@ export async function GET(request: Request, context: { params: Promise<{ raceId:
 
   const { data: race, error: raceError } = await supabase
     .from("races")
-    .select("id, season, round, slug, name, country, circuit, start_time, lock_time, status")
+    .select(
+      "id, season, round, slug, name, country, circuit, venue_name, city, timezone, race_description, image_url, banner_url, poster_url, highlights_url, start_time, lock_time, status",
+    )
     .eq("id", raceId)
     .single();
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SiteNav } from "@/app/site-nav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,17 +18,16 @@ export const metadata: Metadata = {
   description: "Formula 1 league betting PWA for the 2026 season.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <SiteNav />
+        <div className="pt-16">{children}</div>
       </body>
     </html>
   );

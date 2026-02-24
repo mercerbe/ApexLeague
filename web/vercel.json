@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/internal/cron/ingest-races-odds",
+      "schedule": "15 */3 * * *"
+    },
+    {
       "path": "/api/internal/cron/settle-races",
       "schedule": "0 3 * * *"
     }

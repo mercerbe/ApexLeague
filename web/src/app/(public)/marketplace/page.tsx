@@ -1,11 +1,5 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { MarketplaceClient } from "@/app/(authed)/marketplace/marketplace-client";
+import { redirect } from "next/navigation";
 
-export default async function PublicMarketplacePage() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  return <MarketplaceClient isAuthenticated={Boolean(user)} />;
+export default function PublicMarketplacePage() {
+  redirect("/leagues");
 }
